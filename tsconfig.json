@@ -1,5 +1,7 @@
 {
     "compilerOptions": {
+        "baseUrl": "src",
+        "paths": {"@/*": ["*"]},
         "target": "ES2020",
         "useDefineForClassFields": true,
         "lib": [
@@ -24,7 +26,7 @@
     },
     "include": [
         "src"
-    ],
+, "extra/src/components/ui/accordion.tsx", "extra/src/components/ui/alert-dialog.tsx", "extra/src/components/ui/alert.tsx", "extra/src/components/ui/aspect-ratio.tsx", "extra/src/components/ui/avatar.tsx", "src/pages/AskQuestionPage.tsx", "extra/src/components/ui/breadcrumb.tsx", "extra/src/components/ui/calendar.tsx", "extra/src/components/ui/carousel.tsx", "extra/src/components/ui/chart.tsx", "extra/src/components/ui/checkbox.tsx", "extra/src/components/ui/collapsible.tsx", "extra/src/components/ui/command.tsx", "extra/src/components/ui/context-menu.tsx", "extra/src/components/ui/dialog.tsx", "extra/src/components/ui/drawer.tsx", "extra/src/components/ui/dropdown-menu.tsx", "extra/src/components/ui/form.tsx", "extra/src/components/ui/hover-card.tsx", "extra/src/components/ui/input-otp.tsx", "extra/src/components/ui/label.tsx", "extra/src/components/ui/menubar.tsx", "extra/src/components/ui/navigation-menu.tsx", "extra/src/components/ui/pagination.tsx", "extra/src/components/ui/popover.tsx", "extra/src/components/ui/progress.tsx", "extra/src/components/ui/radio-group.tsx", "extra/src/components/ui/resizable.tsx", "extra/src/components/ui/scroll-area.tsx", "extra/src/components/ui/select.tsx", "extra/src/components/ui/separator.tsx", "extra/src/components/ui/sheet.tsx", "extra/src/components/ui/sidebar.tsx", "extra/src/components/ui/skeleton.tsx", "extra/src/components/ui/slider.tsx", "extra/src/components/ui/sonner.tsx", "extra/src/components/ui/switch.tsx", "extra/src/components/ui/table.tsx", "extra/src/components/ui/tabs.tsx", "extra/src/components/ui/textarea.tsx", "extra/src/components/ui/toast.tsx", "extra/src/components/ui/toaster.tsx", "extra/src/components/ui/toggle-group.tsx", "extra/src/components/ui/toggle.tsx", "extra/src/components/ui/tooltip.tsx", "extra/src/components/ui/use-toast.ts"    ],
     "references": [
         {
             "path": "./tsconfig.node.json"
