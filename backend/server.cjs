@@ -27,8 +27,8 @@ db.serialize(() => {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       role TEXT DEFAULT 'user',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT (datetime('now', 'utc')),
+      updated_at DATETIME DEFAULT (datetime('now', 'utc'))
     )
   `)
 
@@ -41,8 +41,8 @@ db.serialize(() => {
       user_id INTEGER NOT NULL,
       votes INTEGER DEFAULT 0,
       views INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT (datetime('now', 'utc')),
+      updated_at DATETIME DEFAULT (datetime('now', 'utc')),
       FOREIGN KEY (user_id) REFERENCES users (id)
     )
   `)
@@ -52,7 +52,7 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS tags (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT UNIQUE NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT (datetime('now', 'utc'))
     )
   `)
 
@@ -76,8 +76,8 @@ db.serialize(() => {
       user_id INTEGER NOT NULL,
       votes INTEGER DEFAULT 0,
       is_accepted BOOLEAN DEFAULT FALSE,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT (datetime('now', 'utc')),
+      updated_at DATETIME DEFAULT (datetime('now', 'utc')),
       FOREIGN KEY (question_id) REFERENCES questions (id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users (id)
     )
@@ -91,7 +91,7 @@ db.serialize(() => {
       answer_id INTEGER,
       question_id INTEGER,
       vote_type TEXT CHECK(vote_type IN ('up', 'down')) NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT (datetime('now', 'utc')),
       UNIQUE(user_id, question_id),
       UNIQUE(user_id, answer_id),
       FOREIGN KEY (user_id) REFERENCES users (id),
@@ -291,8 +291,11 @@ const optionalAuth = (req, res, next) => {
 
 // Questions routes
 app.get('/api/questions', optionalAuth, (req, res) => {
-    const { sort = 'newest', tag = '', limit = 50 } = req.query
+    const { sort = 'newest', tag = '', limit = 10, page = 1 } = req.query
     const userId = req.user ? req.user.id : null
+    const pageSize = parseInt(limit) || 10
+    const currentPage = parseInt(page) || 1
+    const offset = (currentPage - 1) * pageSize
 
     let orderBy = 'q.created_at DESC'
     if (sort === 'popular') orderBy = 'q.votes DESC'
@@ -318,55 +321,115 @@ app.get('/api/questions', optionalAuth, (req, res) => {
 
     const params = []
     if (tag) {
-        query += ` WHERE t.name LIKE ?`
-        params.push(`%${tag}%`)
+        const tags = tag.split(',').map(t => t.trim()).filter(t => t)
+        if (tags.length > 0) {
+            const placeholders = tags.map(() => '?').join(',')
+            query += ` WHERE t.name IN (${placeholders})`
+            params.push(...tags)
+        }
     }
 
     query += `
     GROUP BY q.id
     ORDER BY ${orderBy}
-    LIMIT ?
+    LIMIT ? OFFSET ?
   `
-    params.push(parseInt(limit))
+    params.push(pageSize, offset)
 
-    db.all(query, params, (err, rows) => {
+    // Also get total count for pagination
+    let countQuery = `
+    SELECT COUNT(DISTINCT q.id) as total
+    FROM questions q
+    LEFT JOIN question_tags qt ON q.id = qt.question_id
+    LEFT JOIN tags t ON qt.tag_id = t.id
+  `
+    
+    const countParams = []
+    if (tag) {
+        const tags = tag.split(',').map(t => t.trim()).filter(t => t)
+        if (tags.length > 0) {
+            const placeholders = tags.map(() => '?').join(',')
+            countQuery += ` WHERE t.name IN (${placeholders})`
+            countParams.push(...tags)
+        }
+    }
+
+    // First get the total count
+    db.get(countQuery, countParams, (err, countResult) => {
         if (err) {
             return res.status(500).json({ error: 'Database error' })
         }
 
-        const questions = rows.map(row => ({
-            ...row,
-            tags: row.tags ? row.tags.split(',') : [],
-            createdAt: row.created_at
-        }))
+        const totalQuestions = countResult.total || 0
+        const totalPages = Math.ceil(totalQuestions / pageSize)
 
-        // If user is authenticated, get their votes for these questions
-        if (userId && questions.length > 0) {
-            const questionIds = questions.map(q => q.id).join(',')
-            db.all(`
-                SELECT question_id, vote_type 
-                FROM votes 
-                WHERE user_id = ? AND question_id IN (${questionIds})
-            `, [userId], (err, votes) => {
-                if (err) {
-                    return res.json(questions) // Return without vote info if there's an error
-                }
+        // Then get the questions
+        db.all(query, params, (err, rows) => {
+            if (err) {
+                return res.status(500).json({ error: 'Database error' })
+            }
 
-                const voteMap = {}
-                votes.forEach(vote => {
-                    voteMap[vote.question_id] = vote.vote_type
+            const questions = rows.map(row => ({
+                ...row,
+                tags: row.tags ? row.tags.split(',') : [],
+                createdAt: row.created_at
+            }))
+
+            // If user is authenticated, get their votes for these questions
+            if (userId && questions.length > 0) {
+                const questionIds = questions.map(q => q.id).join(',')
+                db.all(`
+                    SELECT question_id, vote_type 
+                    FROM votes 
+                    WHERE user_id = ? AND question_id IN (${questionIds})
+                `, [userId], (err, votes) => {
+                    if (err) {
+                        return res.json({
+                            questions,
+                            pagination: {
+                                currentPage,
+                                totalPages,
+                                totalQuestions,
+                                hasNext: currentPage < totalPages,
+                                hasPrev: currentPage > 1
+                            }
+                        })
+                    }
+
+                    const voteMap = {}
+                    votes.forEach(vote => {
+                        voteMap[vote.question_id] = vote.vote_type
+                    })
+
+                    const questionsWithVotes = questions.map(question => ({
+                        ...question,
+                        userVote: voteMap[question.id] || null
+                    }))
+
+                    res.json({
+                        questions: questionsWithVotes,
+                        pagination: {
+                            currentPage,
+                            totalPages,
+                            totalQuestions,
+                            hasNext: currentPage < totalPages,
+                            hasPrev: currentPage > 1
+                        }
+                    })
                 })
-
-                const questionsWithVotes = questions.map(question => ({
-                    ...question,
-                    userVote: voteMap[question.id] || null
-                }))
-
-                res.json(questionsWithVotes)
-            })
-        } else {
-            res.json(questions)
-        }
+            } else {
+                res.json({
+                    questions,
+                    pagination: {
+                        currentPage,
+                        totalPages,
+                        totalQuestions,
+                        hasNext: currentPage < totalPages,
+                        hasPrev: currentPage > 1
+                    }
+                })
+            }
+        })
     })
 })
 
@@ -377,31 +440,99 @@ app.post('/api/questions', authenticateToken, (req, res) => {
         return res.status(400).json({ error: 'Title, content, and tags are required' })
     }
 
+    // Validate title and content lengths
+    if (title.length > 200) {
+        return res.status(400).json({ error: 'Title must be 200 characters or less' })
+    }
+
+    if (content.length > 10000) {
+        return res.status(400).json({ error: 'Content must be 10000 characters or less' })
+    }
+
+    // Validate tags
+    if (tags.length > 5) {
+        return res.status(400).json({ error: 'Maximum 5 tags allowed' })
+    }
+
+    for (const tag of tags) {
+        if (tag.length > 20) {
+            return res.status(400).json({ error: 'Each tag must be 20 characters or less' })
+        }
+        if (!/^[a-zA-Z0-9\-\.#\+]+$/.test(tag)) {
+            return res.status(400).json({ error: 'Tags can only contain letters, numbers, hyphens, dots, and hash/plus symbols' })
+        }
+    }
+
     db.run(`
     INSERT INTO questions (title, content, user_id) 
     VALUES (?, ?, ?)
   `, [title, content, req.user.id], function (err) {
         if (err) {
+            console.error('Error creating question:', err)
             return res.status(500).json({ error: 'Failed to create question' })
         }
 
         const questionId = this.lastID
+        let tagsProcessed = 0
+        const tagIds = []
 
-        // Insert tags and associate with question
+        // Process each tag
         tags.forEach(tagName => {
-            db.run(`INSERT OR IGNORE INTO tags (name) VALUES (?)`, [tagName.toLowerCase()], function () {
-                db.get("SELECT id FROM tags WHERE name = ?", [tagName.toLowerCase()], (err, tag) => {
+            const normalizedTag = tagName.toLowerCase().trim()
+            
+            // Insert or get existing tag
+            db.run(`INSERT OR IGNORE INTO tags (name) VALUES (?)`, [normalizedTag], function (insertErr) {
+                if (insertErr) {
+                    console.error('Error inserting tag:', insertErr)
+                    return res.status(500).json({ error: 'Failed to process tags' })
+                }
+
+                // Get the tag ID
+                db.get("SELECT id FROM tags WHERE name = ?", [normalizedTag], (err, tag) => {
+                    if (err) {
+                        console.error('Error getting tag:', err)
+                        return res.status(500).json({ error: 'Failed to process tags' })
+                    }
+
                     if (tag) {
+                        tagIds.push(tag.id)
+                        
+                        // Associate tag with question
                         db.run(`
-              INSERT OR IGNORE INTO question_tags (question_id, tag_id) 
-              VALUES (?, ?)
-            `, [questionId, tag.id])
+                          INSERT OR IGNORE INTO question_tags (question_id, tag_id) 
+                          VALUES (?, ?)
+                        `, [questionId, tag.id], (err) => {
+                            if (err) {
+                                console.error('Error linking tag to question:', err)
+                            }
+                            
+                            tagsProcessed++
+                            if (tagsProcessed === tags.length) {
+                                // All tags processed, return success
+                                res.status(201).json({ 
+                                    id: questionId, 
+                                    title, 
+                                    content, 
+                                    tags: tags.map(t => t.toLowerCase().trim()),
+                                    message: 'Question created successfully'
+                                })
+                            }
+                        })
+                    } else {
+                        tagsProcessed++
+                        if (tagsProcessed === tags.length) {
+                            res.status(201).json({ 
+                                id: questionId, 
+                                title, 
+                                content, 
+                                tags: tags.map(t => t.toLowerCase().trim()),
+                                message: 'Question created successfully'
+                            })
+                        }
                     }
                 })
             })
         })
-
-        res.status(201).json({ id: questionId, title, content, tags })
     })
 })
 
@@ -518,7 +649,7 @@ function updateQuestionVoteCount(questionId, callback) {
 
         db.run(`
             UPDATE questions 
-            SET votes = ?, updated_at = CURRENT_TIMESTAMP
+            SET votes = ?, updated_at = datetime('now', 'utc')
             WHERE id = ?
         `, [voteCount, questionId], function (err) {
             if (err) {

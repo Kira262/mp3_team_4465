@@ -35,7 +35,16 @@ const AskQuestionPage = () => {
         if (e.key === 'Enter' || e.key === ',') {
             e.preventDefault()
             const tag = tagInput.trim().toLowerCase()
-            if (tag && !formData.tags.includes(tag) && formData.tags.length < 1) {
+            if (tag && !formData.tags.includes(tag) && formData.tags.length < 5) {
+                // Validate tag format
+                if (!/^[a-zA-Z0-9\-\.#\+]+$/.test(tag)) {
+                    toast.error('Tags can only contain letters, numbers, hyphens, dots, and hash/plus symbols')
+                    return
+                }
+                if (tag.length > 20) {
+                    toast.error('Each tag must be 20 characters or less')
+                    return
+                }
                 setFormData(prev => ({
                     ...prev,
                     tags: [...prev.tags, tag]
@@ -47,7 +56,16 @@ const AskQuestionPage = () => {
 
     const addTagButton = () => {
         const tag = tagInput.trim().toLowerCase()
-        if (tag && !formData.tags.includes(tag) && formData.tags.length < 1) {
+        if (tag && !formData.tags.includes(tag) && formData.tags.length < 5) {
+            // Validate tag format
+            if (!/^[a-zA-Z0-9\-\.#\+]+$/.test(tag)) {
+                toast.error('Tags can only contain letters, numbers, hyphens, dots, and hash/plus symbols')
+                return
+            }
+            if (tag.length > 20) {
+                toast.error('Each tag must be 20 characters or less')
+                return
+            }
             setFormData(prev => ({
                 ...prev,
                 tags: [...prev.tags, tag]
@@ -175,7 +193,7 @@ const AskQuestionPage = () => {
                         <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-2">
                             <div className="flex items-center space-x-2">
                                 <Tag className="w-4 h-4" />
-                                <span>Tag</span>
+                                <span>Tags</span>
                                 <span className="text-red-500">*</span>
                             </div>
                         </label>
@@ -188,14 +206,14 @@ const AskQuestionPage = () => {
                                     onChange={(e) => setTagInput(e.target.value)}
                                     onKeyDown={handleAddTag}
                                     className="input-field flex-1"
-                                    placeholder="Add a tag (e.g., react, javascript, typescript)"
+                                    placeholder="Add a tag (e.g., react, javascript, typescript) - Press Enter or comma to add"
                                     maxLength={20}
-                                    disabled={formData.tags.length >= 1}
+                                    disabled={formData.tags.length >= 5}
                                 />
                                 <button
                                     type="button"
                                     onClick={addTagButton}
-                                    disabled={!tagInput.trim() || formData.tags.length >= 1}
+                                    disabled={!tagInput.trim() || formData.tags.length >= 5}
                                     className="btn-primary px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <Plus className="w-4 h-4" />
@@ -221,23 +239,25 @@ const AskQuestionPage = () => {
                                 </div>
                             )}
                             <p className="text-sm text-gray-500">
-                                Add 1 tag to help categorize your question ({formData.tags.length}/1)
+                                Add 1-5 tags to help categorize your question ({formData.tags.length}/5)
                             </p>
 
                             {/* Popular Tags Suggestions */}
-                            {formData.tags.length === 0 && (
+                            {formData.tags.length < 5 && (
                                 <div>
                                     <p className="text-sm font-medium text-gray-700 mb-2">Popular tags:</p>
                                     <div className="flex flex-wrap gap-2">
-                                        {['react', 'javascript', 'typescript', 'node.js', 'python', 'css', 'html', 'api'].map((tag) => (
+                                        {['react', 'javascript', 'typescript', 'node.js', 'python', 'css', 'html', 'api', 'database', 'authentication'].filter(tag => !formData.tags.includes(tag)).map((tag) => (
                                             <button
                                                 key={tag}
                                                 type="button"
                                                 onClick={() => {
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        tags: [tag]
-                                                    }))
+                                                    if (formData.tags.length < 5) {
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            tags: [...prev.tags, tag]
+                                                        }))
+                                                    }
                                                 }}
                                                 className="text-xs px-3 py-1 bg-gray-100 hover:bg-primary-100 hover:text-primary-700 rounded-full transition-colors border border-gray-200 hover:border-primary-300"
                                             >
