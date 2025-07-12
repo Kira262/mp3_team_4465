@@ -1,20 +1,16 @@
-// import React from 'react'
-
-// const QuestionDetailPage = () => {
-//     return (
-//         <div className="max-w-4xl mx-auto">
-//             <div className="text-center py-16">
-//                 <h1 className="text-2xl font-bold text-gray-900">Question Detail Page</h1>
-//                 <p className="text-gray-600 mt-2">Coming soon...</p>
-//             </div>
-//         </div>
-//     )
-// }
-
-// export default QuestionDetailPage
-
 import { useState } from "react";
-import { ArrowLeft, ArrowUp, ArrowDown, MessageSquare, Eye, User, Check, Flag, Share2, Bookmark } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUp,
+  ArrowDown,
+  MessageSquare,
+  Eye,
+  User,
+  Check,
+  Flag,
+  Share2,
+  Bookmark,
+} from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent } from "../components/ui/card";
@@ -49,12 +45,12 @@ But I'm not sure if localStorage is the best place to store the JWT token, and I
     name: "john_dev",
     avatar: "",
     reputation: 1250,
-    joinedDate: "2023-05-15"
+    joinedDate: "2023-05-15",
   },
   votes: 15,
   views: 245,
   createdAt: "2024-01-15T10:30:00Z",
-  updatedAt: "2024-01-15T10:30:00Z"
+  updatedAt: "2024-01-15T10:30:00Z",
 };
 
 const mockAnswers = [
@@ -90,14 +86,14 @@ This approach provides better security and cleaner state management.`,
     author: {
       name: "security_expert",
       avatar: "",
-      reputation: 3200
+      reputation: 3200,
     },
     votes: 8,
     createdAt: "2024-01-15T11:15:00Z",
-    isAccepted: true
+    isAccepted: true,
   },
   {
-    id: "2", 
+    id: "2",
     content: `I've been using this pattern successfully:
 
 \`\`\`javascript
@@ -118,12 +114,12 @@ The key is to use useCallback to prevent unnecessary re-renders.`,
     author: {
       name: "react_dev",
       avatar: "",
-      reputation: 1800
+      reputation: 1800,
     },
     votes: 3,
     createdAt: "2024-01-15T12:30:00Z",
-    isAccepted: false
-  }
+    isAccepted: false,
+  },
 ];
 
 export default function QuestionDetail() {
@@ -137,23 +133,27 @@ export default function QuestionDetail() {
 
     setIsSubmitting(true);
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     setAnswerText("");
     setIsSubmitting(false);
   };
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString() + " at " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return (
+      date.toLocaleDateString() +
+      " at " +
+      date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    );
   };
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Back Button */}
-      <Button 
-        variant="ghost" 
-        size="sm" 
-        asChild 
+      <Button
+        variant="ghost"
+        size="sm"
+        asChild
         className="hover:bg-accent hover:text-accent-foreground transition-colors"
       >
         <Link to="/">
@@ -171,7 +171,15 @@ export default function QuestionDetail() {
               <Button variant="vote" size="icon">
                 <ArrowUp className="w-5 h-5" />
               </Button>
-              <span className={`text-lg font-bold ${mockQuestion.votes > 0 ? 'text-vote-up' : mockQuestion.votes < 0 ? 'text-vote-down' : 'text-muted-foreground'}`}>
+              <span
+                className={`text-lg font-bold ${
+                  mockQuestion.votes > 0
+                    ? "text-vote-up"
+                    : mockQuestion.votes < 0
+                    ? "text-vote-down"
+                    : "text-muted-foreground"
+                }`}
+              >
                 {mockQuestion.votes}
               </span>
               <Button variant="vote" size="icon">
@@ -186,17 +194,21 @@ export default function QuestionDetail() {
             {/* Content */}
             <div className="flex-1">
               <h1 className="text-2xl font-bold mb-4">{mockQuestion.title}</h1>
-              
+
               <div className="prose prose-sm max-w-none mb-6">
-                <div dangerouslySetInnerHTML={{ __html: mockQuestion.description.replace(/\n/g, '<br>') }} />
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: mockQuestion.description.replace(/\n/g, "<br>"),
+                  }}
+                />
               </div>
 
               {/* Tags */}
               <div className="flex flex-wrap gap-2 mb-6">
                 {mockQuestion.tags.map((tag) => (
-                  <Badge 
-                    key={tag} 
-                    variant="secondary" 
+                  <Badge
+                    key={tag}
+                    variant="secondary"
                     className="bg-tag-bg text-tag-foreground hover:bg-primary hover:text-primary-foreground cursor-pointer transition-colors"
                   >
                     {tag}
@@ -244,10 +256,15 @@ export default function QuestionDetail() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="text-sm">
-                    <Link to={`/users/${mockQuestion.author.name}`} className="font-medium text-primary hover:underline">
+                    <Link
+                      to={`/users/${mockQuestion.author.name}`}
+                      className="font-medium text-primary hover:underline"
+                    >
                       {mockQuestion.author.name}
                     </Link>
-                    <div className="text-muted-foreground">{mockQuestion.author.reputation} reputation</div>
+                    <div className="text-muted-foreground">
+                      {mockQuestion.author.reputation} reputation
+                    </div>
                   </div>
                 </div>
               </div>
@@ -261,15 +278,30 @@ export default function QuestionDetail() {
         <h2 className="text-xl font-semibold">{mockAnswers.length} Answers</h2>
 
         {mockAnswers.map((answer) => (
-          <Card key={answer.id} className={answer.isAccepted ? "border-vote-up/50 bg-vote-up/5" : ""}>
-            <CardContent className={`p-6 ${answer.isAccepted ? "border-vote-up" : ""}`}>
+          <Card
+            key={answer.id}
+            className={
+              answer.isAccepted ? "border-vote-up/50 bg-vote-up/5" : ""
+            }
+          >
+            <CardContent
+              className={`p-6 ${answer.isAccepted ? "border-vote-up" : ""}`}
+            >
               <div className="flex gap-6">
                 {/* Vote Section */}
                 <div className="flex flex-col items-center gap-2 min-w-[60px]">
                   <Button variant="vote" size="icon">
                     <ArrowUp className="w-5 h-5" />
                   </Button>
-                  <span className={`text-lg font-bold ${answer.votes > 0 ? 'text-vote-up' : answer.votes < 0 ? 'text-vote-down' : 'text-muted-foreground'}`}>
+                  <span
+                    className={`text-lg font-bold ${
+                      answer.votes > 0
+                        ? "text-vote-up"
+                        : answer.votes < 0
+                        ? "text-vote-down"
+                        : "text-muted-foreground"
+                    }`}
+                  >
                     {answer.votes}
                   </span>
                   <Button variant="vote" size="icon">
@@ -285,19 +317,30 @@ export default function QuestionDetail() {
                 {/* Answer Content */}
                 <div className="flex-1">
                   <div className="prose prose-sm max-w-none mb-6">
-                    <div dangerouslySetInnerHTML={{ __html: answer.content.replace(/\n/g, '<br>') }} />
+                    <div
+                      dangerouslySetInnerHTML={{
+                        __html: answer.content.replace(/\n/g, "<br>"),
+                      }}
+                    />
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm">Share</Button>
-                      <Button variant="ghost" size="sm">Flag</Button>
+                      <Button variant="ghost" size="sm">
+                        Share
+                      </Button>
+                      <Button variant="ghost" size="sm">
+                        Flag
+                      </Button>
                     </div>
 
                     <div className="flex items-center gap-3">
                       <div className="text-sm text-muted-foreground">
                         {answer.isAccepted && (
-                          <Badge variant="default" className="mr-2 bg-vote-up text-white">
+                          <Badge
+                            variant="default"
+                            className="mr-2 bg-vote-up text-white"
+                          >
                             Accepted
                           </Badge>
                         )}
@@ -310,10 +353,15 @@ export default function QuestionDetail() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="text-sm">
-                        <Link to={`/users/${answer.author.name}`} className="font-medium text-primary hover:underline">
+                        <Link
+                          to={`/users/${answer.author.name}`}
+                          className="font-medium text-primary hover:underline"
+                        >
                           {answer.author.name}
                         </Link>
-                        <div className="text-muted-foreground">{answer.author.reputation} reputation</div>
+                        <div className="text-muted-foreground">
+                          {answer.author.reputation} reputation
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -339,8 +387,8 @@ export default function QuestionDetail() {
               <div className="text-sm text-muted-foreground">
                 Thanks for contributing an answer to StackIt!
               </div>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={!answerText.trim() || isSubmitting}
                 className="min-w-32"
               >
