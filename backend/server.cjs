@@ -92,6 +92,8 @@ db.serialize(() => {
       question_id INTEGER,
       vote_type TEXT CHECK(vote_type IN ('up', 'down')) NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, question_id),
+      UNIQUE(user_id, answer_id),
       FOREIGN KEY (user_id) REFERENCES users (id),
       FOREIGN KEY (answer_id) REFERENCES answers (id) ON DELETE CASCADE,
       FOREIGN KEY (question_id) REFERENCES questions (id) ON DELETE CASCADE
@@ -267,9 +269,30 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
     res.json(req.user)
 })
 
+// Optional auth middleware - doesn't require authentication but adds user info if available
+const optionalAuth = (req, res, next) => {
+    const authHeader = req.headers['authorization']
+    const token = authHeader && authHeader.split(' ')[1]
+
+    if (!token) {
+        req.user = null
+        return next()
+    }
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            req.user = null
+        } else {
+            req.user = user
+        }
+        next()
+    })
+}
+
 // Questions routes
-app.get('/api/questions', (req, res) => {
+app.get('/api/questions', optionalAuth, (req, res) => {
     const { sort = 'newest', tag = '', limit = 50 } = req.query
+    const userId = req.user ? req.user.id : null
 
     let orderBy = 'q.created_at DESC'
     if (sort === 'popular') orderBy = 'q.votes DESC'
@@ -285,7 +308,7 @@ app.get('/api/questions', (req, res) => {
       q.created_at,
       u.username as author,
       COUNT(a.id) as answers,
-      GROUP_CONCAT(t.name) as tags
+      GROUP_CONCAT(DISTINCT t.name) as tags
     FROM questions q
     LEFT JOIN users u ON q.user_id = u.id
     LEFT JOIN answers a ON q.id = a.question_id
@@ -317,7 +340,33 @@ app.get('/api/questions', (req, res) => {
             createdAt: row.created_at
         }))
 
-        res.json(questions)
+        // If user is authenticated, get their votes for these questions
+        if (userId && questions.length > 0) {
+            const questionIds = questions.map(q => q.id).join(',')
+            db.all(`
+                SELECT question_id, vote_type 
+                FROM votes 
+                WHERE user_id = ? AND question_id IN (${questionIds})
+            `, [userId], (err, votes) => {
+                if (err) {
+                    return res.json(questions) // Return without vote info if there's an error
+                }
+
+                const voteMap = {}
+                votes.forEach(vote => {
+                    voteMap[vote.question_id] = vote.vote_type
+                })
+
+                const questionsWithVotes = questions.map(question => ({
+                    ...question,
+                    userVote: voteMap[question.id] || null
+                }))
+
+                res.json(questionsWithVotes)
+            })
+        } else {
+            res.json(questions)
+        }
     })
 })
 
@@ -355,6 +404,97 @@ app.post('/api/questions', authenticateToken, (req, res) => {
         res.status(201).json({ id: questionId, title, content, tags })
     })
 })
+
+// Vote routes
+app.post('/api/questions/:id/vote', authenticateToken, (req, res) => {
+    const questionId = req.params.id
+    const { vote_type } = req.body // 'up' or 'down'
+    const userId = req.user.id
+
+    if (!vote_type || !['up', 'down'].includes(vote_type)) {
+        return res.status(400).json({ error: 'Vote type must be "up" or "down"' })
+    }
+
+    // Check if user already voted on this question
+    db.get(`
+        SELECT vote_type FROM votes 
+        WHERE user_id = ? AND question_id = ?
+    `, [userId, questionId], (err, existingVote) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' })
+        }
+
+        if (existingVote) {
+            // User has already voted, don't allow any further voting
+            return res.status(400).json({
+                error: 'You have already voted on this question. Each user can only vote once per question.'
+            })
+        } else {
+            // New vote
+            db.run(`
+                INSERT INTO votes (user_id, question_id, vote_type) 
+                VALUES (?, ?, ?)
+            `, [userId, questionId, vote_type], function (err) {
+                if (err) {
+                    return res.status(500).json({ error: 'Failed to record vote' })
+                }
+
+                // Update question vote count
+                updateQuestionVoteCount(questionId, (err, voteCount) => {
+                    if (err) {
+                        return res.status(500).json({ error: 'Failed to update vote count' })
+                    }
+                    res.json({ message: 'Vote recorded', voteCount, userVote: vote_type })
+                })
+            })
+        }
+    })
+})
+
+// Get user's vote for a specific question
+app.get('/api/questions/:id/vote', authenticateToken, (req, res) => {
+    const questionId = req.params.id
+    const userId = req.user.id
+
+    db.get(`
+        SELECT vote_type FROM votes 
+        WHERE user_id = ? AND question_id = ?
+    `, [userId, questionId], (err, vote) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' })
+        }
+
+        res.json({ userVote: vote ? vote.vote_type : null })
+    })
+})
+
+// Helper function to update question vote count
+function updateQuestionVoteCount(questionId, callback) {
+    db.get(`
+        SELECT 
+            SUM(CASE WHEN vote_type = 'up' THEN 1 ELSE 0 END) - 
+            SUM(CASE WHEN vote_type = 'down' THEN 1 ELSE 0 END) as vote_count
+        FROM votes 
+        WHERE question_id = ?
+    `, [questionId], (err, result) => {
+        if (err) {
+            return callback(err)
+        }
+
+        const voteCount = result.vote_count || 0
+
+        db.run(`
+            UPDATE questions 
+            SET votes = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `, [voteCount, questionId], function (err) {
+            if (err) {
+                return callback(err)
+            }
+            callback(null, voteCount)
+        })
+    })
+}
 
 // Start server
 app.listen(PORT, () => {

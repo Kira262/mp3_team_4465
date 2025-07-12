@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-    Search,
     Bell,
     User,
     LogOut,
@@ -20,19 +19,11 @@ const Navbar = () => {
     const [showProfileMenu, setShowProfileMenu] = useState(false)
     const [showNotifications, setShowNotifications] = useState(false)
     const [showMobileMenu, setShowMobileMenu] = useState(false)
-    const [searchQuery, setSearchQuery] = useState('')
 
     const handleLogout = () => {
         logout()
         navigate('/')
         setShowProfileMenu(false)
-    }
-
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault()
-        if (searchQuery.trim()) {
-            navigate(`/search?q=${encodeURIComponent(searchQuery)}`)
-        }
     }
 
     const notifications = [
@@ -56,20 +47,6 @@ const Navbar = () => {
                             StackIt
                         </span>
                     </Link>
-
-                    {/* Search Bar */}
-                    <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-md mx-8">
-                        <div className="relative w-full">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="text"
-                                placeholder="Search questions..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 bg-white/50 backdrop-blur-sm"
-                            />
-                        </div>
-                    </form>
 
                     {/* Desktop Navigation */}
                     <div className="hidden md:flex items-center space-x-4">
@@ -210,20 +187,6 @@ const Navbar = () => {
                             exit={{ opacity: 0, height: 0 }}
                             className="md:hidden border-t border-gray-200 py-4"
                         >
-                            {/* Mobile Search */}
-                            <form onSubmit={handleSearch} className="mb-4">
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search questions..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                    />
-                                </div>
-                            </form>
-
                             {isAuthenticated ? (
                                 <div className="space-y-2">
                                     <Link
