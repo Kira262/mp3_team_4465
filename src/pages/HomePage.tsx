@@ -148,7 +148,7 @@ const HomePage = () => {
                 // SQLite format like "2025-07-12 06:42:40"
                 date = new Date(dateString.replace(' ', 'T') + 'Z')
             }
-            
+
             // Fallback if date is invalid
             if (isNaN(date.getTime())) {
                 date = new Date(dateString)
