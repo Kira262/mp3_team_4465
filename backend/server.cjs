@@ -468,6 +468,39 @@ app.get('/api/questions/:id/vote', authenticateToken, (req, res) => {
     })
 })
 
+// Notifications route - get latest questions for notifications
+app.get('/api/notifications/latest-questions', optionalAuth, (req, res) => {
+    const query = `
+        SELECT 
+            q.id,
+            q.title,
+            q.created_at,
+            u.username as author
+        FROM questions q
+        LEFT JOIN users u ON q.user_id = u.id
+        ORDER BY q.created_at DESC
+        LIMIT 3
+    `
+
+    db.all(query, [], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' })
+        }
+
+        const latestQuestions = rows.map(row => ({
+            id: row.id,
+            title: row.title,
+            author: row.author,
+            createdAt: row.created_at,
+            message: `New question: "${row.title}" by ${row.author}`,
+            time: row.created_at,
+            read: false // All new questions are unread by default
+        }))
+
+        res.json(latestQuestions)
+    })
+})
+
 // Helper function to update question vote count
 function updateQuestionVoteCount(questionId, callback) {
     db.get(`
