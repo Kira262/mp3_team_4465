@@ -45,12 +45,17 @@ const RegisterPage = () => {
 
         setLoading(true)
         try {
-            const success = await register(formData.username, formData.email, formData.password)
-            if (success) {
-                toast.success('Account created successfully!')
-                navigate('/')
+            const result = await register(formData.username, formData.email, formData.password)
+            if (result.success) {
+                if (result.requiresVerification) {
+                    toast.success('Account created! Please check your email to verify your account.')
+                    navigate(`/verify-email?email=${encodeURIComponent(result.email || formData.email)}`)
+                } else {
+                    toast.success('Account created successfully!')
+                    navigate('/')
+                }
             } else {
-                toast.error('Failed to create account. Email might already exist.')
+                toast.error('Failed to create account. Email or username might already exist.')
             }
         } catch (error) {
             toast.error('Something went wrong. Please try again.')

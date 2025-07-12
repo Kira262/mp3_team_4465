@@ -5,6 +5,8 @@ import Navbar from './components/Navbar'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import EmailVerificationPage from './pages/EmailVerificationPage'
+import EmailDemoPage from './pages/EmailDemoPage'
 import AskQuestionPage from './pages/AskQuestionPage'
 import QuestionDetailPage from './pages/QuestionDetailPage'
 import UserProfilePage from './pages/UserProfilePage'
@@ -23,6 +25,8 @@ function App() {
                     <Route path="/" element={<HomePage />} />
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/register" element={<RegisterPage />} />
+                    <Route path="/verify-email" element={<EmailVerificationPage />} />
+                    <Route path="/email-demo" element={<EmailDemoPage />} />
                     <Route path="/ask" element={<AskQuestionPage />} />
                     <Route path="/question/:id" element={<QuestionDetailPage />} />
                     <Route path="/profile/:username" element={<UserProfilePage />} />

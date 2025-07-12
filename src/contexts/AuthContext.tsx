@@ -4,13 +4,13 @@ interface User {
     id: number
     username: string
     email: string
-    role: 'user' | 'admin'
+    role: 'user' | 'admin' | 'guest'
 }
 
 interface AuthContextType {
     user: User | null
-    login: (email: string, password: string) => Promise<boolean>
-    register: (username: string, email: string, password: string) => Promise<boolean>
+    login: (email: string, password: string) => Promise<{ success: boolean; requiresVerification?: boolean; email?: string }>
+    register: (username: string, email: string, password: string) => Promise<{ success: boolean; requiresVerification?: boolean; email?: string }>
     logout: () => void
     isAuthenticated: boolean
     loading: boolean
@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }
 
-    const login = async (email: string, password: string): Promise<boolean> => {
+    const login = async (email: string, password: string): Promise<{ success: boolean; requiresVerification?: boolean; email?: string }> => {
         try {
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
@@ -72,20 +72,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 body: JSON.stringify({ email, password })
             })
 
+            const data = await response.json()
+
             if (response.ok) {
-                const { token, user: userData } = await response.json()
-                localStorage.setItem('token', token)
-                setUser(userData)
-                return true
+                localStorage.setItem('token', data.token)
+                setUser(data.user)
+                return { success: true }
+            } else if (response.status === 403 && data.requiresVerification) {
+                // User exists but email is not verified
+                return { 
+                    success: false, 
+                    requiresVerification: true, 
+                    email: data.email 
+                }
             }
-            return false
+            return { success: false }
         } catch (error) {
             console.error('Login error:', error)
-            return false
+            return { success: false }
         }
     }
 
-    const register = async (username: string, email: string, password: string): Promise<boolean> => {
+    const register = async (username: string, email: string, password: string): Promise<{ success: boolean; requiresVerification?: boolean; email?: string }> => {
         try {
             const response = await fetch('/api/auth/register', {
                 method: 'POST',
@@ -95,16 +103,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 body: JSON.stringify({ username, email, password })
             })
 
+            const data = await response.json()
+
             if (response.ok) {
-                const { token, user: userData } = await response.json()
-                localStorage.setItem('token', token)
-                setUser(userData)
-                return true
+                // New registration flow - user needs to verify email
+                if (data.requiresVerification) {
+                    return { 
+                        success: true, 
+                        requiresVerification: true, 
+                        email: data.email 
+                    }
+                }
+                
+                // Old flow - immediate login (shouldn't happen anymore)
+                if (data.token && data.user) {
+                    localStorage.setItem('token', data.token)
+                    setUser(data.user)
+                }
+                
+                return { success: true }
             }
-            return false
+            return { success: false }
         } catch (error) {
             console.error('Register error:', error)
-            return false
+            return { success: false }
         }
     }
 

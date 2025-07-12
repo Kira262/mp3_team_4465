@@ -22,10 +22,13 @@ const LoginPage = () => {
 
         setLoading(true)
         try {
-            const success = await login(email, password)
-            if (success) {
+            const result = await login(email, password)
+            if (result.success) {
                 toast.success('Welcome back!')
                 navigate('/')
+            } else if (result.requiresVerification) {
+                toast.error('Please verify your email before logging in')
+                navigate(`/verify-email?email=${encodeURIComponent(result.email || email)}`)
             } else {
                 toast.error('Invalid email or password')
             }
@@ -181,7 +184,25 @@ const LoginPage = () => {
                                 }}
                                 className="w-full btn-secondary text-sm"
                             >
-                                Demo User Account
+                                Demo User Account (Verified)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    navigate('/verify-email?email=test@example.com')
+                                }}
+                                className="w-full btn-secondary text-sm bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-300"
+                            >
+                                Demo Email Verification Flow
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    navigate('/email-demo')
+                                }}
+                                className="w-full btn-secondary text-sm bg-purple-100 hover:bg-purple-200 text-purple-800 border-purple-300"
+                            >
+                                📧 Enhanced Email Demo
                             </button>
                         </div>
                     </div>

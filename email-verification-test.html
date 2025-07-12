@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verification API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .test-section { background: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        button { background: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #2563eb; }
+        .result { background: white; padding: 15px; margin: 10px 0; border-radius: 4px; border-left: 4px solid #3b82f6; }
+        .success { border-left-color: #10b981; }
+        .error { border-left-color: #ef4444; }
+        pre { background: #1f2937; color: #f3f4f6; padding: 15px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Enhanced Email Verification API Test</h1>
+        <p>Test the enhanced fake email verification system with rich templates and logging.</p>
+
+        <!-- Send Demo Email -->
+        <div class="test-section">
+            <h2>📧 Send Demo Verification Email</h2>
+            <div>
+                <label>Email: <input type="email" id="demoEmail" value="test.user@example.com" style="margin: 5px; padding: 8px; width: 250px;"></label><br>
+                <label>Username: <input type="text" id="demoUsername" value="test_user" style="margin: 5px; padding: 8px; width: 200px;"></label><br>
+                <button onclick="sendDemoEmail()">Send Demo Email</button>
+            </div>
+            <div id="sendResult"></div>
+        </div>
+
+        <!-- Check Email History -->
+        <div class="test-section">
+            <h2>📜 Check Email History</h2>
+            <div>
+                <label>Email: <input type="email" id="historyEmail" value="test.user@example.com" style="margin: 5px; padding: 8px; width: 250px;"></label>
+                <button onclick="checkEmailHistory()">Get Email History</button>
+            </div>
+            <div id="historyResult"></div>
+        </div>
+
+        <!-- Check Verification Status -->
+        <div class="test-section">
+            <h2>✅ Check Verification Status</h2>
+            <div>
+                <label>Email: <input type="email" id="statusEmail" value="test.user@example.com" style="margin: 5px; padding: 8px; width: 250px;"></label>
+                <button onclick="checkStatus()">Check Status</button>
+            </div>
+            <div id="statusResult"></div>
+        </div>
+
+        <!-- Test Registration Flow -->
+        <div class="test-section">
+            <h2>🆕 Test Registration Flow</h2>
+            <div>
+                <label>Username: <input type="text" id="regUsername" value="demo_user" style="margin: 5px; padding: 8px; width: 200px;"></label><br>
+                <label>Email: <input type="email" id="regEmail" value="demo@test.com" style="margin: 5px; padding: 8px; width: 250px;"></label><br>
+                <label>Password: <input type="password" id="regPassword" value="demo123" style="margin: 5px; padding: 8px; width: 200px;"></label><br>
+                <button onclick="testRegistration()">Test Registration</button>
+            </div>
+            <div id="regResult"></div>
+        </div>
+
+        <!-- Console Logs -->
+        <div class="test-section">
+            <h2>📺 Server Console Output</h2>
+            <p>Check your terminal/console for detailed email logs when sending emails!</p>
+            <p><strong>Look for:</strong></p>
+            <ul>
+                <li>📧 Enhanced email sending logs</li>
+                <li>🔗 Verification links</li>
+                <li>⏰ Token expiration times</li>
+                <li>📝 Email content previews</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+
+        async function sendDemoEmail() {
+            const email = document.getElementById('demoEmail').value;
+            const username = document.getElementById('demoUsername').value;
+            
+            if (!email || !username) {
+                showResult('sendResult', 'Please fill in both email and username', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/demo-email`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, username })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('sendResult', `
+                        <strong>✅ Demo email sent successfully!</strong><br>
+                        <strong>Email ID:</strong> ${data.emailId}<br>
+                        <strong>Verification Link:</strong> <a href="${data.verificationLink}" target="_blank">${data.verificationLink}</a><br>
+                        <strong>Preview URL:</strong> <a href="${API_BASE}${data.previewUrl}" target="_blank">${API_BASE}${data.previewUrl}</a>
+                    `, 'success');
+                } else {
+                    showResult('sendResult', `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showResult('sendResult', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkEmailHistory() {
+            const email = document.getElementById('historyEmail').value;
+            
+            if (!email) {
+                showResult('historyResult', 'Please enter an email address', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/verification-emails/${encodeURIComponent(email)}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    let emailList = data.emails.map(email => `
+                        <div style="border: 1px solid #ddd; padding: 10px; margin: 5px 0; border-radius: 4px;">
+                            <strong>ID:</strong> ${email.id}<br>
+                            <strong>Subject:</strong> ${email.subject}<br>
+                            <strong>Sent:</strong> ${new Date(email.timestamp).toLocaleString()}<br>
+                            <strong>Status:</strong> ${email.status}<br>
+                            <strong>Link:</strong> <a href="${email.verificationLink}" target="_blank">Test Verification</a>
+                        </div>
+                    `).join('');
+                    
+                    showResult('historyResult', `
+                        <strong>📜 Email History (${data.count} emails)</strong><br>
+                        ${emailList || '<em>No emails found</em>'}
+                    `, 'success');
+                } else {
+                    showResult('historyResult', `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showResult('historyResult', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkStatus() {
+            const email = document.getElementById('statusEmail').value;
+            
+            if (!email) {
+                showResult('statusResult', 'Please enter an email address', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/verification-status/${encodeURIComponent(email)}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('statusResult', `
+                        <strong>✅ Verification Status</strong><br>
+                        <strong>Email:</strong> ${data.email}<br>
+                        <strong>Verified:</strong> ${data.isVerified ? '✅ Yes' : '❌ No'}<br>
+                        <strong>Has Token:</strong> ${data.hasToken ? '✅ Yes' : '❌ No'}<br>
+                        <strong>Token Expired:</strong> ${data.tokenExpired ? '❌ Yes' : '✅ No'}<br>
+                        <strong>Account Created:</strong> ${data.accountCreated ? new Date(data.accountCreated).toLocaleString() : 'N/A'}<br>
+                        <strong>Token Expires:</strong> ${data.expiresAt ? new Date(data.expiresAt).toLocaleString() : 'N/A'}<br>
+                        <strong>Mock Emails Sent:</strong> ${data.mockEmails.length}
+                    `, 'success');
+                } else {
+                    showResult('statusResult', `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showResult('statusResult', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testRegistration() {
+            const username = document.getElementById('regUsername').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+            
+            if (!username || !email || !password) {
+                showResult('regResult', 'Please fill in all fields', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('regResult', `
+                        <strong>✅ Registration successful!</strong><br>
+                        <strong>Message:</strong> ${data.message}<br>
+                        <strong>User ID:</strong> ${data.userId}<br>
+                        <strong>Email:</strong> ${data.email}<br>
+                        <strong>Requires Verification:</strong> ${data.requiresVerification ? '✅ Yes' : '❌ No'}<br>
+                        <em>Check the server console for email details!</em>
+                    `, 'success');
+                } else {
+                    showResult('regResult', `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showResult('regResult', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        function showResult(elementId, content, type = '') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="result ${type}">${content}</div>`;
+        }
+    </script>
+</body>
+</html>

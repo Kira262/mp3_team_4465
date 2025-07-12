@@ -89,3 +89,26 @@
 .ql-container {
     @apply border-gray-300 rounded-b-lg;
 }
+
+/* Email content styles */
+.email-content {
+    font-family: 'Inter', Arial, sans-serif;
+    line-height: 1.6;
+}
+
+.email-content h1, .email-content h2, .email-content h3 {
+    margin-bottom: 1rem;
+}
+
+.email-content p {
+    margin-bottom: 1rem;
+}
+
+.email-content a {
+    color: #2563eb;
+    text-decoration: none;
+}
+
+.email-content a:hover {
+    text-decoration: underline;
+}
