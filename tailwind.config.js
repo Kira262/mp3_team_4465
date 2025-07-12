@@ -30,7 +30,12 @@ export default {
                     700: '#374151',
                     800: '#1f2937',
                     900: '#111827',
-                }
+                },
+                accent: {
+                    DEFAULT: '#f59e42', // or any color you prefer
+                    foreground: '#fff', // text color for accent background
+                    hover: '#e3882f',   // hover color
+                },
             },
             fontFamily: {
                 sans: ['Inter', 'system-ui', 'sans-serif'],
