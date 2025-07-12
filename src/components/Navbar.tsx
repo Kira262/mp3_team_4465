@@ -1,8 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-    Search,
     Bell,
     User,
     LogOut,
@@ -14,32 +13,111 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
+interface Notification {
+    id: number
+    title: string
+    author: string
+    createdAt: string
+    message: string
+    time: string
+    read: boolean
+}
+
 const Navbar = () => {
     const { user, logout, isAuthenticated } = useAuth()
     const navigate = useNavigate()
     const [showProfileMenu, setShowProfileMenu] = useState(false)
     const [showNotifications, setShowNotifications] = useState(false)
     const [showMobileMenu, setShowMobileMenu] = useState(false)
-    const [searchQuery, setSearchQuery] = useState('')
+    const [notifications, setNotifications] = useState<Notification[]>([])
+    const [loading, setLoading] = useState(false)
+
+    // Format time ago function
+    const formatTimeAgo = (dateString: string) => {
+        // Handle different date formats that might come from the API
+        let date: Date
+        try {
+            // Try parsing the date string - handle both ISO format and SQLite format
+            if (dateString.includes('T')) {
+                date = new Date(dateString)
+            } else {
+                // SQLite format like "2025-07-12 06:42:40"
+                date = new Date(dateString.replace(' ', 'T') + 'Z')
+            }
+
+            // Fallback if date is invalid
+            if (isNaN(date.getTime())) {
+                date = new Date(dateString)
+            }
+        } catch (error) {
+            console.error('Error parsing date:', dateString, error)
+            return 'unknown time'
+        }
+
+        const now = new Date()
+        const diffInMs = now.getTime() - date.getTime()
+
+        // Convert to different time units
+        const diffInMinutes = Math.floor(diffInMs / (1000 * 60))
+        const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60))
+        const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+
+        // Less than 1 minute
+        if (diffInMinutes < 1) return 'just now'
+
+        // Less than 60 minutes - show minutes
+        if (diffInMinutes < 60) {
+            return diffInMinutes === 1 ? '1 minute ago' : `${diffInMinutes} minutes ago`
+        }
+
+        // Less than 24 hours - show hours
+        if (diffInHours < 24) {
+            return diffInHours === 1 ? '1 hour ago' : `${diffInHours} hours ago`
+        }
+
+        // Show days
+        return diffInDays === 1 ? '1 day ago' : `${diffInDays} days ago`
+    }
+
+    // Fetch latest questions for notifications
+    const fetchNotifications = async () => {
+        try {
+            setLoading(true)
+            const response = await fetch('/api/notifications/latest-questions')
+            if (response.ok) {
+                const data = await response.json()
+                setNotifications(data)
+            }
+        } catch (error) {
+            console.error('Failed to fetch notifications:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    // Fetch notifications when component mounts and when notifications dropdown opens
+    useEffect(() => {
+        fetchNotifications()
+
+        // Set up polling to check for new questions every 30 seconds
+        const interval = setInterval(fetchNotifications, 30000)
+
+        return () => clearInterval(interval)
+    }, [])
+
+    // Also fetch when notifications dropdown is opened
+    const handleNotificationClick = () => {
+        setShowNotifications(!showNotifications)
+        if (!showNotifications) {
+            fetchNotifications()
+        }
+    }
 
     const handleLogout = () => {
         logout()
         navigate('/')
         setShowProfileMenu(false)
     }
-
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault()
-        if (searchQuery.trim()) {
-            navigate(`/search?q=${encodeURIComponent(searchQuery)}`)
-        }
-    }
-
-    const notifications = [
-        { id: 1, message: 'John answered your question "How to use React hooks?"', time: '2 hours ago', read: false },
-        { id: 2, message: 'Your answer was accepted on "JavaScript async/await"', time: '1 day ago', read: true },
-        { id: 3, message: 'New comment on your answer', time: '3 days ago', read: true },
-    ]
 
     const unreadCount = notifications.filter(n => !n.read).length
 
@@ -57,20 +135,6 @@ const Navbar = () => {
                         </span>
                     </Link>
 
-                    {/* Search Bar */}
-                    <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-md mx-8">
-                        <div className="relative w-full">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="text"
-                                placeholder="Search questions..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 bg-white/50 backdrop-blur-sm"
-                            />
-                        </div>
-                    </form>
-
                     {/* Desktop Navigation */}
                     <div className="hidden md:flex items-center space-x-4">
                         {isAuthenticated ? (
@@ -87,7 +151,7 @@ const Navbar = () => {
                                 {/* Notifications */}
                                 <div className="relative">
                                     <button
-                                        onClick={() => setShowNotifications(!showNotifications)}
+                                        onClick={handleNotificationClick}
                                         className="p-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors duration-200 relative"
                                     >
                                         <Bell className="w-6 h-6" />
@@ -107,19 +171,38 @@ const Navbar = () => {
                                                 className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50"
                                             >
                                                 <div className="px-4 py-2 border-b border-gray-100">
-                                                    <h3 className="font-semibold text-gray-900">Notifications</h3>
+                                                    <h3 className="font-semibold text-gray-900">Latest Questions</h3>
                                                 </div>
                                                 <div className="max-h-64 overflow-y-auto">
-                                                    {notifications.map((notification) => (
-                                                        <div
-                                                            key={notification.id}
-                                                            className={`px-4 py-3 hover:bg-gray-50 transition-colors ${!notification.read ? 'bg-primary-50' : ''
-                                                                }`}
-                                                        >
-                                                            <p className="text-sm text-gray-800">{notification.message}</p>
-                                                            <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
+                                                    {loading ? (
+                                                        <div className="px-4 py-8 text-center text-gray-500">
+                                                            Loading latest questions...
                                                         </div>
-                                                    ))}
+                                                    ) : notifications.length > 0 ? (
+                                                        notifications.map((notification) => (
+                                                            <Link
+                                                                key={notification.id}
+                                                                to={`/questions/${notification.id}`}
+                                                                className={`block px-4 py-3 hover:bg-gray-50 transition-colors ${!notification.read ? 'bg-primary-50' : ''
+                                                                    }`}
+                                                                onClick={() => setShowNotifications(false)}
+                                                            >
+                                                                <p className="text-sm text-gray-800 font-medium truncate">
+                                                                    {notification.title}
+                                                                </p>
+                                                                <p className="text-xs text-gray-600 mt-1">
+                                                                    by {notification.author}
+                                                                </p>
+                                                                <p className="text-xs text-gray-500 mt-1">
+                                                                    {formatTimeAgo(notification.createdAt)}
+                                                                </p>
+                                                            </Link>
+                                                        ))
+                                                    ) : (
+                                                        <div className="px-4 py-8 text-center text-gray-500">
+                                                            No new questions yet
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </motion.div>
                                         )}
@@ -210,20 +293,6 @@ const Navbar = () => {
                             exit={{ opacity: 0, height: 0 }}
                             className="md:hidden border-t border-gray-200 py-4"
                         >
-                            {/* Mobile Search */}
-                            <form onSubmit={handleSearch} className="mb-4">
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search questions..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                    />
-                                </div>
-                            </form>
-
                             {isAuthenticated ? (
                                 <div className="space-y-2">
                                     <Link
