@@ -28,21 +28,47 @@ interface Question {
     userVote?: 'up' | 'down' | null
 }
 
+interface PaginationInfo {
+    currentPage: number
+    totalPages: number
+    totalQuestions: number
+    hasNext: boolean
+    hasPrev: boolean
+}
+
 const HomePage = () => {
     const { isAuthenticated } = useAuth()
     const [questions, setQuestions] = useState<Question[]>([])
     const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([])
+    const [pagination, setPagination] = useState<PaginationInfo>({
+        currentPage: 1,
+        totalPages: 1,
+        totalQuestions: 0,
+        hasNext: false,
+        hasPrev: false
+    })
     const [loading, setLoading] = useState(true)
     const [sortBy, setSortBy] = useState('newest')
     const [filterTag, setFilterTag] = useState('')
+    const [selectedTags, setSelectedTags] = useState<string[]>([])
     const [searchQuery, setSearchQuery] = useState('')
+    const [currentPage, setCurrentPage] = useState(1)
+    const [jumpToPage, setJumpToPage] = useState('')
+    const [itemsPerPage, setItemsPerPage] = useState(10)
 
     useEffect(() => {
         fetchQuestions()
-    }, [sortBy, filterTag])
+    }, [sortBy, selectedTags, currentPage, itemsPerPage])
 
     useEffect(() => {
-        // Filter and search questions
+        // Reset to first page when filters change
+        if (currentPage !== 1) {
+            setCurrentPage(1)
+        }
+    }, [sortBy, selectedTags, itemsPerPage])
+
+    useEffect(() => {
+        // Filter and search questions locally
         let filtered = [...questions]
 
         // Apply search filter
@@ -53,17 +79,37 @@ const HomePage = () => {
             )
         }
 
-        // Apply tag filter
-        if (filterTag.trim()) {
-            filtered = filtered.filter(question =>
-                question.tags.some(tag =>
-                    tag.toLowerCase().includes(filterTag.toLowerCase())
-                )
-            )
-        }
-
         setFilteredQuestions(filtered)
-    }, [questions, searchQuery, filterTag])
+    }, [questions, searchQuery])
+
+    // Handle tag selection/deselection
+    const handleTagClick = (tag: string) => {
+        setSelectedTags(prev => {
+            if (prev.includes(tag)) {
+                // Remove tag if already selected
+                return prev.filter(t => t !== tag)
+            } else {
+                // Add tag if not selected
+                return [...prev, tag]
+            }
+        })
+    }
+
+    // Remove specific tag
+    const removeTag = (tagToRemove: string) => {
+        setSelectedTags(prev => prev.filter(tag => tag !== tagToRemove))
+    }
+
+    // Handle page jump
+    const handlePageJump = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            const pageNum = parseInt(jumpToPage)
+            if (pageNum >= 1 && pageNum <= pagination.totalPages) {
+                setCurrentPage(pageNum)
+                setJumpToPage('')
+            }
+        }
+    }
 
     const fetchQuestions = async () => {
         try {
@@ -75,13 +121,21 @@ const HomePage = () => {
                 headers['Authorization'] = `Bearer ${token}`
             }
 
-            const response = await fetch(`/api/questions?sort=${sortBy}&tag=${filterTag}`, {
+            const response = await fetch(`/api/questions?sort=${sortBy}&tag=${selectedTags.join(',')}&page=${currentPage}&limit=${itemsPerPage}`, {
                 headers
             })
             if (response.ok) {
                 const data = await response.json()
                 console.log('API Questions data:', data) // Debug log
-                setQuestions(data)
+                
+                // Handle new API response format with pagination
+                if (data.questions && data.pagination) {
+                    setQuestions(data.questions)
+                    setPagination(data.pagination)
+                } else {
+                    // Fallback for old format
+                    setQuestions(data)
+                }
             } else {
                 console.error('API request failed, using mock data')
                 setQuestions(mockQuestions)
@@ -223,7 +277,7 @@ const HomePage = () => {
         }
 
         // Check if user has already voted
-        const question = filteredQuestions.find(q => q.id === questionId)
+        const question = questions.find(q => q.id === questionId)
         if (question?.userVote) {
             alert('You have already voted on this question. Each user can only vote once per question.')
             return
@@ -306,6 +360,31 @@ const HomePage = () => {
             <div className="grid lg:grid-cols-4 gap-8">
                 {/* Main Content */}
                 <div className="lg:col-span-3">
+                    {/* Selected Tags */}
+                    {selectedTags.length > 0 && (
+                        <div className="mb-6">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Selected Tags:</h3>
+                            <div className="flex flex-wrap gap-2">
+                                {selectedTags.map((tag) => (
+                                    <span
+                                        key={tag}
+                                        className="badge badge-primary flex items-center space-x-1 cursor-pointer hover:bg-primary-200 transition-colors"
+                                        onClick={() => removeTag(tag)}
+                                    >
+                                        <span>{tag}</span>
+                                        <X className="w-3 h-3 ml-1" />
+                                    </span>
+                                ))}
+                                <button
+                                    onClick={() => setSelectedTags([])}
+                                    className="text-sm text-gray-500 hover:text-red-600 transition-colors"
+                                >
+                                    Clear all
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Search Bar */}
                     <div className="mb-6">
                         <div className="relative">
@@ -329,6 +408,12 @@ const HomePage = () => {
                         {searchQuery && (
                             <p className="mt-2 text-sm text-gray-600">
                                 {filteredQuestions.length} result{filteredQuestions.length !== 1 ? 's' : ''} found for "{searchQuery}"
+                                {selectedTags.length > 0 && ` with tags: ${selectedTags.join(', ')}`}
+                            </p>
+                        )}
+                        {!searchQuery && selectedTags.length > 0 && (
+                            <p className="mt-2 text-sm text-gray-600">
+                                Showing questions tagged with: {selectedTags.join(', ')}
                             </p>
                         )}
                     </div>
@@ -339,7 +424,16 @@ const HomePage = () => {
                             <h2 className="text-2xl font-bold text-gray-900">Recent Questions</h2>
                             <div className="flex items-center space-x-2">
                                 <TrendingUp className="w-5 h-5 text-primary-600" />
-                                <span className="text-sm text-gray-500">{filteredQuestions.length} questions</span>
+                                <div className="text-sm text-gray-500">
+                                    {!searchQuery && selectedTags.length === 0 ? (
+                                        <span>{pagination.totalQuestions || 0} total questions</span>
+                                    ) : (
+                                        <span>
+                                            {searchQuery ? filteredQuestions.length : questions.length} 
+                                            {searchQuery || selectedTags.length > 0 ? ' filtered' : ''} questions
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -362,6 +456,12 @@ const HomePage = () => {
                                     placeholder="Filter by tag..."
                                     value={filterTag}
                                     onChange={(e) => setFilterTag(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && filterTag.trim()) {
+                                            handleTagClick(filterTag.trim())
+                                            setFilterTag('')
+                                        }
+                                    }}
                                     className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm w-40"
                                 />
                             </div>
@@ -370,7 +470,7 @@ const HomePage = () => {
 
                     {/* Questions List */}
                     <div className="space-y-4">
-                        {filteredQuestions.map((question) => (
+                        {(searchQuery ? filteredQuestions : questions).map((question) => (
                             <motion.div
                                 key={question.id}
                                 initial={{ opacity: 0, y: 20 }}
@@ -449,18 +549,17 @@ const HomePage = () => {
                                             </p>
                                         </Link>
 
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex flex-wrap gap-2">
-                                                {question.tags.map((tag) => (
-                                                    <span
-                                                        key={tag}
-                                                        className="badge badge-primary cursor-pointer hover:bg-primary-200 transition-colors"
-                                                        onClick={() => setFilterTag(tag)}
-                                                    >
-                                                        {tag}
-                                                    </span>
-                                                ))}
-                                            </div>
+                                        <div className="flex items-center justify-between">                                        <div className="flex flex-wrap gap-2">
+                                            {question.tags.map((tag) => (
+                                                <span
+                                                    key={tag}
+                                                    className="badge badge-primary cursor-pointer hover:bg-primary-200 transition-colors"
+                                                    onClick={() => handleTagClick(tag)}
+                                                >
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
 
                                             <div className="flex items-center space-x-3 text-sm text-gray-500">
                                                 <div className="flex items-center space-x-2">
@@ -479,19 +578,145 @@ const HomePage = () => {
                         ))}
                     </div>
 
-                    {filteredQuestions.length === 0 && (
+                    {/* Pagination */}
+                    {!searchQuery && pagination.totalPages > 1 && (
+                        <div className="bg-white border border-gray-200 rounded-lg p-6 mt-8">
+                            <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+                                {/* Items per page selector */}
+                                <div className="flex items-center space-x-2">
+                                    <label className="text-sm text-gray-600">Show:</label>
+                                    <select
+                                        value={itemsPerPage}
+                                        onChange={(e) => {
+                                            setItemsPerPage(Number(e.target.value))
+                                            setCurrentPage(1) // Reset to first page when changing items per page
+                                        }}
+                                        className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                                    >
+                                        <option value={5}>5</option>
+                                        <option value={10}>10</option>
+                                        <option value={20}>20</option>
+                                        <option value={50}>50</option>
+                                    </select>
+                                    <span className="text-sm text-gray-600">per page</span>
+                                </div>
+
+                                {/* Pagination Info */}
+                                <div className="text-sm text-gray-600">
+                                    Showing <span className="font-medium">{((pagination.currentPage - 1) * itemsPerPage) + 1}</span> to{' '}
+                                    <span className="font-medium">
+                                        {Math.min(pagination.currentPage * itemsPerPage, pagination.totalQuestions)}
+                                    </span> of{' '}
+                                    <span className="font-medium">{pagination.totalQuestions}</span> questions
+                                </div>
+
+                                {/* Pagination Controls */}
+                                <div className="flex items-center space-x-2">
+                                    <button
+                                        onClick={() => setCurrentPage(1)}
+                                        disabled={pagination.currentPage === 1}
+                                        className="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        First
+                                    </button>
+                                    
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                        disabled={!pagination.hasPrev}
+                                        className="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Previous
+                                    </button>
+                                    
+                                    <div className="flex items-center space-x-1">
+                                        {Array.from({ length: Math.min(7, pagination.totalPages) }, (_, i) => {
+                                            let pageNum: number;
+                                            const totalPages = pagination.totalPages;
+                                            const currentPage = pagination.currentPage;
+                                            
+                                            if (totalPages <= 7) {
+                                                pageNum = i + 1;
+                                            } else if (currentPage <= 4) {
+                                                pageNum = i + 1;
+                                            } else if (currentPage >= totalPages - 3) {
+                                                pageNum = totalPages - 6 + i;
+                                            } else {
+                                                pageNum = currentPage - 3 + i;
+                                            }
+                                            
+                                            return (
+                                                <button
+                                                    key={pageNum}
+                                                    onClick={() => setCurrentPage(pageNum)}
+                                                    className={`px-3 py-2 text-sm rounded-md transition-all duration-200 ${
+                                                        pageNum === pagination.currentPage
+                                                            ? 'bg-primary-600 text-white shadow-md transform scale-105'
+                                                            : 'border border-gray-300 hover:bg-gray-50 text-gray-700'
+                                                    }`}
+                                                >
+                                                    {pageNum}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))}
+                                        disabled={!pagination.hasNext}
+                                        className="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Next
+                                    </button>
+                                    
+                                    <button
+                                        onClick={() => setCurrentPage(pagination.totalPages)}
+                                        disabled={pagination.currentPage === pagination.totalPages}
+                                        className="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Last
+                                    </button>
+                                    
+                                    {/* Page Jump Input */}
+                                    {pagination.totalPages > 7 && (
+                                        <div className="flex items-center space-x-2 ml-4">
+                                            <span className="text-sm text-gray-600">Go to:</span>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max={pagination.totalPages}
+                                                value={jumpToPage}
+                                                onChange={(e) => setJumpToPage(e.target.value)}
+                                                onKeyDown={handlePageJump}
+                                                placeholder="Page"
+                                                className="w-16 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Page Summary for Mobile */}
+                    {!searchQuery && pagination.totalPages > 1 && (
+                        <div className="sm:hidden text-center text-xs text-gray-500 mt-2">
+                            Page {pagination.currentPage} of {pagination.totalPages}
+                        </div>
+                    )}
+
+                    {(searchQuery ? filteredQuestions.length === 0 : questions.length === 0) && (
                         <div className="text-center py-12">
                             <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                             <h3 className="text-xl font-semibold text-gray-600 mb-2">
-                                {searchQuery || filterTag ? 'No questions found' : 'No questions yet'}
+                                {searchQuery || selectedTags.length > 0 ? 'No questions found' : 'No questions yet'}
                             </h3>
                             <p className="text-gray-500">
-                                {searchQuery || filterTag
+                                {searchQuery || selectedTags.length > 0
                                     ? 'Try adjusting your search or filter criteria'
                                     : 'Be the first to ask a question!'
                                 }
                             </p>
-                            {!searchQuery && !filterTag && (
+                            {!searchQuery && selectedTags.length === 0 && (
                                 <Link
                                     to="/ask"
                                     className="btn-primary mt-4 inline-flex items-center"
@@ -513,8 +738,12 @@ const HomePage = () => {
                                 {popularTags.map((tag) => (
                                     <button
                                         key={tag}
-                                        onClick={() => setFilterTag(tag)}
-                                        className="badge badge-primary hover:bg-primary-200 transition-colors cursor-pointer"
+                                        onClick={() => handleTagClick(tag)}
+                                        className={`badge transition-colors cursor-pointer ${
+                                            selectedTags.includes(tag)
+                                                ? 'bg-primary-600 text-white hover:bg-primary-700'
+                                                : 'badge-primary hover:bg-primary-200'
+                                        }`}
                                     >
                                         {tag}
                                     </button>
@@ -528,7 +757,7 @@ const HomePage = () => {
                             <div className="space-y-3">
                                 <div className="flex justify-between">
                                     <span className="text-gray-600">Questions</span>
-                                    <span className="font-semibold text-gray-900">1,234</span>
+                                    <span className="font-semibold text-gray-900">{pagination.totalQuestions || 0}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-gray-600">Answers</span>
